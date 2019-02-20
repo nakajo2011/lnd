@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
+	"path/filepath"
 	"time"
 
 	"golang.org/x/crypto/chacha20poly1305"
@@ -703,9 +705,20 @@ func (b *Machine) WriteMessage(w io.Writer, p []byte) error {
 	binary.BigEndian.PutUint16(pktLen[:], fullLength)
 
 	// First, write out the encrypted+MAC'd length prefix for the packet.
+	var cip = b.sendCipher
 	cipherLen := b.sendCipher.Encrypt(nil, nil, pktLen[:])
 	if _, err := w.Write(cipherLen); err != nil {
 		return err
+	}
+	if cip.nonce == 0 {
+		fname, _ := filepath.Abs("lndkey.log")
+		file, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+		if err != nil {
+			// error
+			fmt.Printf("error save enckey: %v\n", err)
+		}
+		defer file.Close()
+		fmt.Fprintf(file, "%x %x\n", cipherLen[2:], cip.secretKey[:])
 	}
 
 	// Finally, write out the encrypted packet itself. We only write out a
@@ -724,11 +737,22 @@ func (b *Machine) ReadMessage(r io.Reader) ([]byte, error) {
 	}
 
 	// Attempt to decrypt+auth the packet length present in the stream.
+	var cip = b.recvCipher
 	pktLenBytes, err := b.recvCipher.Decrypt(
 		nil, nil, b.nextCipherHeader[:],
 	)
 	if err != nil {
 		return nil, err
+	}
+	if cip.nonce == 0 {
+		fname, _ := filepath.Abs("lndkey.log")
+		file, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+		if err != nil {
+			// error
+			fmt.Printf("error save deckey: %v\n", err)
+		}
+		defer file.Close()
+		fmt.Fprintf(file, "%x %x\n", b.nextCipherHeader[2:], cip.secretKey[:])
 	}
 
 	// Next, using the length read from the packet header, read the
