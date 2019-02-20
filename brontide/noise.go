@@ -710,6 +710,7 @@ func (b *Machine) WriteMessage(w io.Writer, p []byte) error {
 	if _, err := w.Write(cipherLen); err != nil {
 		return err
 	}
+	// refer: https://gist.github.com/nayuta-ueno/ae2f3bc78b34340cd56bfd4c2bf0c7ce
 	if cip.nonce == 0 {
 		fname, _ := filepath.Abs("lndkey.log")
 		file, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
@@ -744,6 +745,7 @@ func (b *Machine) ReadMessage(r io.Reader) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	// refer: https://gist.github.com/nayuta-ueno/ae2f3bc78b34340cd56bfd4c2bf0c7ce
 	if cip.nonce == 0 {
 		fname, _ := filepath.Abs("lndkey.log")
 		file, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
