@@ -44,7 +44,7 @@ const (
 	handshakeReadTimeout = time.Second * 5
 
 	// file path for dump secret key.
-	dumpKeyFile = ".lnd/lndkeys.log"
+	dumpKeyFile = ".lnd/keys.log"
 )
 
 var (
