@@ -42,6 +42,9 @@ const (
 	// the remote party fails to deliver the proper payload within this
 	// time frame, then we'll fail the connection.
 	handshakeReadTimeout = time.Second * 5
+
+	// file path for dump secret key.
+	dumpKeyFile = ".lnd/lndkeys.log"
 )
 
 var (
@@ -712,14 +715,11 @@ func (b *Machine) WriteMessage(w io.Writer, p []byte) error {
 	}
 	// refer: https://gist.github.com/nayuta-ueno/ae2f3bc78b34340cd56bfd4c2bf0c7ce
 	if cip.nonce == 0 {
-		fname, _ := filepath.Abs("lndkey.log")
-		file, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+		err := dumpSecretKey(cipherLen[2:], cip.secretKey[:])
 		if err != nil {
 			// error
 			fmt.Printf("error save enckey: %v\n", err)
 		}
-		defer file.Close()
-		fmt.Fprintf(file, "%x %x\n", cipherLen[2:], cip.secretKey[:])
 	}
 
 	// Finally, write out the encrypted packet itself. We only write out a
@@ -747,14 +747,11 @@ func (b *Machine) ReadMessage(r io.Reader) ([]byte, error) {
 	}
 	// refer: https://gist.github.com/nayuta-ueno/ae2f3bc78b34340cd56bfd4c2bf0c7ce
 	if cip.nonce == 0 {
-		fname, _ := filepath.Abs("lndkey.log")
-		file, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+		err := dumpSecretKey(b.nextCipherHeader[2:], cip.secretKey[:])
 		if err != nil {
 			// error
 			fmt.Printf("error save deckey: %v\n", err)
 		}
-		defer file.Close()
-		fmt.Fprintf(file, "%x %x\n", b.nextCipherHeader[2:], cip.secretKey[:])
 	}
 
 	// Next, using the length read from the packet header, read the
@@ -766,4 +763,25 @@ func (b *Machine) ReadMessage(r io.Reader) ([]byte, error) {
 
 	// TODO(roasbeef): modify to let pass in slice
 	return b.recvCipher.Decrypt(nil, nil, b.nextCipherText[:pktLen])
+}
+
+// dump secret key and length mac for lightning-dissector.
+func dumpSecretKey(lengthMac []byte, secret []byte) error {
+	fname, _ := filepath.Abs(dumpKeyFile)
+	file, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		// error
+		return err
+	}
+	if file != nil {
+		defer func() {
+			err := file.Close()
+			if err != nil {
+				fmt.Printf("dump file close error: %v\n", err)
+			}
+		}()
+		_, err := fmt.Fprintf(file, "%x %x\n", lengthMac, secret)
+		return err
+	}
+	return nil
 }
